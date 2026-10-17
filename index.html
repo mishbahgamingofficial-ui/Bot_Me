@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NexusVerify — Telegram Mini App (UID & Access Portal)</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            tg: {
+              bg: '#0B0F17',
+              card: '#131B2E',
+              border: '#1E293B',
+              accent: '#6366F1',
+              emerald: '#10B981',
+              amber: '#F59E0B',
+              rose: '#F43F5E'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #070A10;
+      color: #F8FAFC;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glass-card {
+      background: linear-gradient(145deg, rgba(22, 31, 51, 0.85), rgba(14, 20, 34, 0.92));
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-subtle {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .glow-indigo {
+      box-shadow: 0 0 30px -5px rgba(99, 102, 241, 0.35);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.3);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.4);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.4);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Simulation & Environment Bar (for testing User vs Admin & Bot Chat Flow) -->
+  <header class="sticky top-0 z-30 border-b border-white/10 bg-[#0A0E17]/90 backdrop-blur-xl">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-sm tracking-tight text-white">NexusVerify Mini App</span>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Telegram WebApp</span>
+          </div>
+          <p class="text-xs text-slate-400">Partner UID Verification & Role-Gated Admin Console</p>
+        </div>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-white/10">
+        <button id="tabBtnChat" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-300 hover:text-white">
+          1. Bot Chat Preview
+        </button>
+        <button id="tabBtnUser" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-indigo-600 text-white shadow">
+          2. User Mini App
+        </button>
+        <button id="tabBtnAdmin" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-300 hover:text-white flex items-center gap-1.5">
+          <span>3. Admin Panel</span>
+          <span id="pendingBadgeTop" class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">2</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6 items-start justify-center">
+
+    <!-- LEFT / CENTER: TELEGRAM PHONE FRAME -->
+    <div class="w-full max-w-md mx-auto lg:mx-0 flex-shrink-0">
+      <div class="rounded-[28px] border border-white/15 bg-[#0B101B] shadow-2xl overflow-hidden flex flex-col min-h-[640px]">
+
+        <!-- Telegram Native Top Bar -->
+        <div class="px-4 py-3 bg-[#111827] border-b border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-xs font-bold text-white">
+              NV
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h2 id="frameHeaderTitle" class="text-sm font-semibold text-white">Nexus Partner Portal</h2>
+                <svg class="w-3.5 h-3.5 text-sky-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <p id="frameHeaderSub" class="text-[11px] text-emerald-400">Mini App • Secure Session</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="activeRolePill" class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">USER VIEW</span>
+          </div>
+        </div>
+
+        <!-- VIEW 1: TELEGRAM BOT CHAT SIMULATION (Shows how the left "Open" button works) -->
+        <section id="viewChat" class="hidden flex-1 flex flex-col justify-between bg-[#090D16] p-4">
+          <div class="space-y-4 overflow-y-auto pr-1 custom-scroll">
+            <div class="text-center my-2">
+              <span class="text-[11px] px-3 py-1 rounded-full bg-white/5 text-slate-400">Today</span>
+            </div>
+
+            <!-- User /start bubble -->
+            <div class="flex justify-end">
+              <div class="bg-indigo-600 text-white text-xs px-3.5 py-2 rounded-2xl rounded-tr-sm max-w-[75%] shadow">
+                /start
+                <span class="block text-[9px] text-indigo-200 text-right mt-0.5">20:30</span>
+              </div>
+            </div>
+
+            <!-- Bot Welcome Message with Step 1 Registration Link -->
+            <div class="flex justify-start">
+              <div class="glass-card rounded-2xl rounded-tl-sm p-3.5 max-w-[88%] space-y-2.5 text-xs text-slate-200 shadow-lg">
+                <div class="flex items-center gap-2 text-indigo-400 font-semibold">
+                  <span>✨ Welcome to Official Partner Access</span>
+                </div>
+                <p class="leading-relaxed text-slate-300">
+                  Community access ke liye niche diye gaye official partner link se apna account register karein aur apna <strong>Account UID</strong> copy karein:
+                </p>
+                <div class="p-2.5 rounded-xl bg-slate-950/80 border border-indigo-500/30 flex items-center justify-between gap-2">
+                  <span id="chatReferralUrlDisplay" class="font-mono text-[11px] text-indigo-300 truncate">https://partner-platform.com/register?ref=VIP2026</span>
+                  <button id="copyLinkFromChatBtn" type="button" class="px-2 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-[10px] font-semibold shrink-0">
+                    Copy
+                  </button>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  Registration complete hone ke baad niche message bar ke left side me <strong class="text-white">"Open"</strong> button dabayein aur apna UID submit karein. Admin link verify karke aapka access approve kar dega.
+                </p>
+                <div class="pt-1 flex flex-col gap-1.5">
+                  <button id="openRegFromChatBtn" type="button" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-xs transition flex items-center justify-center gap-1.5">
+                    <span>🔗 Step 1: Open Registration Link</span>
+                  </button>
+                  <button id="openMiniAppInlineBtn" type="button" class="w-full py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5">
+                    <span>🚀 Step 2: Submit UID in Mini App</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Simulated Telegram Bottom Input Bar with Left "Open" WebApp Button -->
+          <div class="mt-4 pt-3 border-t border-white/10">
+            <div class="text-[11px] text-indigo-300 mb-2 flex items-center gap-1.5">
+              <span class="inline-block w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+              <span>Yahan niche left side wala <strong>"Open"</strong> button click karke Mini App kholein:</span>
+            </div>
+            <div class="flex items-center gap-2 bg-[#131B2E] p-1.5 rounded-2xl border border-white/10">
+              <!-- THE LEFT SIDE "OPEN" MENU BUTTON -->
+              <button id="tgLeftMenuOpenBtn" type="button" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md glow-indigo transition transform active:scale-95">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+                <span>Open</span>
+              </button>
+              <div class="flex-1 text-xs text-slate-500 px-2 select-none">Message...</div>
+              <div class="p-2 text-slate-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 2: USER MINI APP (Opened via Left "Open" Button) -->
+        <section id="viewUser" class="flex-1 flex flex-col justify-between p-4 space-y-4 overflow-y-auto custom-scroll">
+          <div class="space-y-4">
+            <!-- Hero Status Banner -->
+            <div class="glass-card rounded-2xl p-4 relative overflow-hidden">
+              <div class="absolute -right-8 -top-8 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-indigo-400">Official Partner Verification</span>
+                <span id="userCurrentStatusBadge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10">
+                  Not Submitted
+                </span>
+              </div>
+              <h3 class="text-base font-bold text-white leading-snug">Verify Your Partner UID</h3>
+              <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+                Official referral link se registration karke apna UID submit karein. Admin link verification ke baad aapka dashboard unlock ho jayega.
+              </p>
+            </div>
+
+            <!-- Step 1: Official Registration Link Card -->
+            <div class="glass-subtle rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center justify-center">1</span>
+                  <h4 class="text-xs font-semibold text-white uppercase tracking-wider">Register via Official Link</h4>
+                </div>
+                <span id="platformTagDisplay" class="text-[11px] text-slate-400 font-mono">Code: VIP2026</span>
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-slate-950/90 border border-white/10 flex items-center justify-between gap-2">
+                <div class="truncate">
+                  <p class="text-[10px] text-slate-400">Partner Registration URL</p>
+                  <p id="userRefUrlText" class="text-xs font-mono text-indigo-300 truncate">https://partner-platform.com/register?ref=VIP2026</p>
+                </div>
+                <button id="copyRefUrlUserBtn" type="button" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-medium text-white shrink-0 transition">
+                  Copy Link
+                </button>
+              </div>
+
+              <div class="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 flex items-start gap-2">
+                <span class="mt-0.5">⚠️</span>
+                <span>Note: Sirf isi official referral link se bana hua naya account UID hi admin verification me approve hoga.</span>
+              </div>
+            </div>
+
+            <!-- Step 2: Submit UID Form -->
+            <form id="uidSubmitForm" class="glass-card rounded-2xl p-4 space-y-3.5">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center justify-center">2</span>
+                <h4 class="text-xs font-semibold text-white uppercase tracking-wider">Submit Your Registered UID</h4>
+              </div>
+
+              <div>
+                <label for="inputTelegramUser" class="block text-[11px] font-medium text-slate-300 mb-1">Telegram Username / Name</label>
+                <input id="inputTelegramUser" type="text" value="@arjun_trader" required
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                  placeholder="@username" />
+              </div>
+
+              <div>
+                <label for="inputUidNumber" class="block text-[11px] font-medium text-slate-300 mb-1">Partner Account UID (Numbers / ID)</label>
+                <input id="inputUidNumber" type="text" required
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-white/15 text-sm text-white font-mono tracking-wider focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. 84920155" />
+              </div>
+
+              <div class="flex items-start gap-2 pt-0.5">
+                <input id="confirmRefCheck" type="checkbox" required class="mt-0.5 rounded border-white/20 bg-slate-900 text-indigo-600 focus:ring-indigo-500" />
+                <label for="confirmRefCheck" class="text-[11px] text-slate-300 leading-snug">
+                  Maine upar diye gaye official referral link se hi registration kiya hai.
+                </label>
+              </div>
+
+              <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-xs uppercase tracking-wider shadow-lg glow-indigo transition transform active:scale-[0.99]">
+                Submit UID for Admin Verification
+              </button>
+            </form>
+
+            <!-- Live Verification Status Card -->
+            <div id="userVerificationResultCard" class="glass-subtle rounded-2xl p-4 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-200">Your Latest Submission</span>
+                <span id="latestSubmissionTime" class="text-[11px] text-slate-400 font-mono">--</span>
+              </div>
+              <div id="latestSubmissionBody" class="text-xs text-slate-400">
+                Abhi tak aapne koi UID submit nahi kiya hai. Upar form me apna UID enter karke submit karein.
+              </div>
+            </div>
+          </div>
+
+          <!-- Transparent Risk & Compliance Footer -->
+          <div class="pt-2 border-t border-white/10 text-[10px] text-slate-400 leading-relaxed text-center">
+            🔒 Official UID Verification Portal • Educational & Community Access Only. No guaranteed profit or loss-recovery claims are made.
+          </div>
+        </section>
+
+        <!-- VIEW 3: ADMIN PANEL (Inside the Same Mini App, Restricted to Admin Telegram ID) -->
+        <section id="viewAdmin" class="hidden flex-1 flex flex-col justify-between p-4 space-y-4 overflow-y-auto custom-scroll">
+          <div class="space-y-4">
+            <!-- Admin Security Header -->
+            <div class="glass-card rounded-2xl p-3.5 border-l-4 border-l-indigo-500 flex items-center justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-white">Admin Verification Console</h3>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">Verify whether submitted UIDs registered via your referral link</p>
+              </div>
+              <button id="toggleAdminSettingsBtn" type="button" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-[11px] font-medium text-slate-200 shrink-0 transition">
+                ⚙️ Link Settings
+              </button>
+            </div>
+
+            <!-- Collapsible Admin Settings Drawer -->
+            <div id="adminSettingsBox" class="hidden glass-subtle rounded-2xl p-3.5 space-y-3 border border-indigo-500/30">
+              <h4 class="text-xs font-semibold text-indigo-300">Update Referral Link & Admin Config</h4>
+              <div>
+                <label for="adminRefUrlInput" class="block text-[10px] text-slate-400 mb-1">Official Registration Link (Sent by Bot & Mini App)</label>
+                <input id="adminRefUrlInput" type="url" value="https://partner-platform.com/register?ref=VIP2026"
+                  class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-xs text-white font-mono" />
+              </div>
+              <div>
+                <label for="adminCodeInput" class="block text-[10px] text-slate-400 mb-1">Partner Referral Code Tag</label>
+                <input id="adminCodeInput" type="text" value="Code: VIP2026"
+                  class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-xs text-white font-mono" />
+              </div>
+              <button id="saveAdminSettingsBtn" type="button" class="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+                Save Configuration
+              </button>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-3 gap-2.5">
+              <div class="glass-subtle rounded-xl p-3 text-center">
+                <p class="text-[10px] uppercase text-slate-400">Pending</p>
+                <p id="statPending" class="text-lg font-bold text-amber-400 font-mono mt-0.5">2</p>
+              </div>
+              <div class="glass-subtle rounded-xl p-3 text-center">
+                <p class="text-[10px] uppercase text-slate-400">Verified</p>
+                <p id="statVerified" class="text-lg font-bold text-emerald-400 font-mono mt-0.5">1</p>
+              </div>
+              <div class="glass-subtle rounded-xl p-3 text-center">
+                <p class="text-[10px] uppercase text-slate-400">Rejected</p>
+                <p id="statRejected" class="text-lg font-bold text-rose-400 font-mono mt-0.5">1</p>
+              </div>
+            </div>
+
+            <!-- Filter & Search Controls -->
+            <div class="space-y-2">
+              <div class="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+                <button type="button" data-filter="all" class="admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white">All</button>
+                <button type="button" data-filter="pending" class="admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white">Pending</button>
+                <button type="button" data-filter="verified" class="admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white">Verified</button>
+                <button type="button" data-filter="rejected" class="admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white">Rejected</button>
+              </div>
+
+              <input id="adminSearchInput" type="text" placeholder="Search by UID or @username..."
+                class="w-full px-3.5 py-2 rounded-xl bg-slate-950/90 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+
+            <!-- Submissions List -->
+            <div id="adminSubmissionsList" class="space-y-2.5"></div>
+          </div>
+
+          <div class="pt-2 border-t border-white/10 text-[10px] text-slate-400 text-center">
+            Admin ID Protected (`initDataUnsafe.user.id === ADMIN_ID`)
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: ARCHITECTURE & INTERACTIVE TEST GUIDE -->
+    <aside class="w-full lg:flex-1 space-y-4">
+      <div class="glass-card rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-300">How This Workflow Operates</h2>
+          <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Live Interactive Demo</span>
+        </div>
+
+        <div class="grid sm:grid-cols-3 gap-3 text-xs">
+          <div class="glass-subtle rounded-xl p-3.5 space-y-1.5">
+            <div class="font-bold text-white flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-[11px]">1</span>
+              <span>Bot Sends Link</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              Jab user <code class="text-indigo-300">/start</code> karta hai, bot official registration link bhejta hai aur chat bar ke left me <strong>"Open"</strong> button set karta hai.
+            </p>
+          </div>
+
+          <div class="glass-subtle rounded-xl p-3.5 space-y-1.5">
+            <div class="font-bold text-white flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-[11px]">2</span>
+              <span>User Submits UID</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              User left-side <strong>"Open"</strong> button click karke Mini App kholta hai aur apna registered <strong>UID</strong> submit karta hai.
+            </p>
+          </div>
+
+          <div class="glass-subtle rounded-xl p-3.5 space-y-1.5">
+            <div class="font-bold text-white flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-[11px]">3</span>
+              <span>Admin Verifies Link</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              Usi Mini App ke <strong>Admin Panel</strong> me admin check karta hai ki UID sahi referral link se bana hai ya nahi, aur <strong>Approve / Reject</strong> karta hai.
+            </p>
+          </div>
+        </div>
+
+        <!-- Responsible Design Note -->
+        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-slate-200 space-y-1">
+          <p class="font-semibold text-amber-300">💡 Important Compliance & Trust Note</p>
+          <p class="text-slate-300 leading-relaxed">
+            "Guaranteed Loss Recovery" ya "100% Fixed Win" jaise claims rakhne se users ko bhari financial nuksan hota hai aur aapka Telegram bot / payment account cyber complaints me ban ya freeze ho sakta hai. Isliye is Mini App ko ek <strong>Clean, Transparent Official Partner UID Verification Portal</strong> ke roop me design kiya gaya hai jo bina kisi misleading claim ke genuine premium look deta hai.
+          </p>
+        </div>
+
+        <!-- Quick Test Trigger -->
+        <div class="pt-1 flex flex-wrap gap-2">
+          <button id="quickFillDemoBtn" type="button" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-medium text-white transition">
+            ⚡ Auto-Fill Sample UID in User Form
+          </button>
+          <button id="jumpToAdminBtn" type="button" class="px-3.5 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-xs font-medium text-white transition">
+            🛡️ Switch to Admin Panel to Approve/Reject
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden px-4 py-3 rounded-xl glass-card border border-indigo-500/40 text-xs font-medium text-white shadow-2xl flex items-center gap-2">
+    <span id="toastText">Action completed</span>
+  </div>
+
+  <script>
+    (function () {
+      // Initialize Telegram WebApp SDK if inside Telegram
+      if (window.Telegram && window.Telegram.WebApp) {
+        try {
+          window.Telegram.WebApp.ready();
+          window.Telegram.WebApp.expand();
+        } catch (e) {}
+      }
+
+      // Application State
+      const state = {
+        activeTab: 'user', // 'chat' | 'user' | 'admin'
+        referralUrl: 'https://partner-platform.com/register?ref=VIP2026',
+        referralCodeTag: 'Code: VIP2026',
+        adminFilter: 'all',
+        adminSearch: '',
+        currentUserHandle: '@arjun_trader',
+        submissions: [
+          {
+            id: 'SUB-104',
+            username: '@rohit_verma',
+            uid: '88492014',
+            timestamp: '10 mins ago',
+            status: 'pending',
+            note: 'Awaiting partner dashboard check'
+          },
+          {
+            id: 'SUB-103',
+            username: '@aman_singh07',
+            uid: '77319042',
+            timestamp: '24 mins ago',
+            status: 'pending',
+            note: 'Awaiting partner dashboard check'
+          },
+          {
+            id: 'SUB-102',
+            username: '@karan_fx',
+            uid: '65920118',
+            timestamp: '1 hr ago',
+            status: 'verified',
+            note: 'Verified under official referral link (VIP2026)'
+          },
+          {
+            id: 'SUB-101',
+            username: '@vikash_99',
+            uid: '51049281',
+            timestamp: '2 hrs ago',
+            status: 'rejected',
+            note: 'UID not found in partner referral list (Wrong link used)'
+          }
+        ]
+      };
+
+      // DOM Elements
+      const tabBtnChat = document.getElementById('tabBtnChat');
+      const tabBtnUser = document.getElementById('tabBtnUser');
+      const tabBtnAdmin = document.getElementById('tabBtnAdmin');
+
+      const viewChat = document.getElementById('viewChat');
+      const viewUser = document.getElementById('viewUser');
+      const viewAdmin = document.getElementById('viewAdmin');
+
+      const frameHeaderTitle = document.getElementById('frameHeaderTitle');
+      const frameHeaderSub = document.getElementById('frameHeaderSub');
+      const activeRolePill = document.getElementById('activeRolePill');
+
+      const chatReferralUrlDisplay = document.getElementById('chatReferralUrlDisplay');
+      const userRefUrlText = document.getElementById('userRefUrlText');
+      const platformTagDisplay = document.getElementById('platformTagDisplay');
+
+      const uidSubmitForm = document.getElementById('uidSubmitForm');
+      const inputTelegramUser = document.getElementById('inputTelegramUser');
+      const inputUidNumber = document.getElementById('inputUidNumber');
+      const confirmRefCheck = document.getElementById('confirmRefCheck');
+
+      const userCurrentStatusBadge = document.getElementById('userCurrentStatusBadge');
+      const latestSubmissionTime = document.getElementById('latestSubmissionTime');
+      const latestSubmissionBody = document.getElementById('latestSubmissionBody');
+
+      const pendingBadgeTop = document.getElementById('pendingBadgeTop');
+      const statPending = document.getElementById('statPending');
+      const statVerified = document.getElementById('statVerified');
+      const statRejected = document.getElementById('statRejected');
+      const adminSubmissionsList = document.getElementById('adminSubmissionsList');
+      const adminSearchInput = document.getElementById('adminSearchInput');
+
+      const toggleAdminSettingsBtn = document.getElementById('toggleAdminSettingsBtn');
+      const adminSettingsBox = document.getElementById('adminSettingsBox');
+      const adminRefUrlInput = document.getElementById('adminRefUrlInput');
+      const adminCodeInput = document.getElementById('adminCodeInput');
+      const saveAdminSettingsBtn = document.getElementById('saveAdminSettingsBtn');
+
+      const toastBox = document.getElementById('toastBox');
+      const toastText = document.getElementById('toastText');
+      let toastTimer = null;
+
+      function showToast(msg) {
+        toastText.textContent = msg;
+        toastBox.classList.remove('hidden');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toastBox.classList.add('hidden');
+        }, 2800);
+      }
+
+      function copyText(text, label) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            showToast(label + ' copied to clipboard!');
+          }).catch(() => fallbackCopy(text, label));
+        } else {
+          fallbackCopy(text, label);
+        }
+      }
+
+      function fallbackCopy(text, label) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          showToast(label + ' copied to clipboard!');
+        } catch (e) {
+          showToast('Copy complete');
+        }
+        document.body.removeChild(ta);
+      }
+
+      function switchTab(tab) {
+        state.activeTab = tab;
+        viewChat.classList.add('hidden');
+        viewUser.classList.add('hidden');
+        viewAdmin.classList.add('hidden');
+
+        [tabBtnChat, tabBtnUser, tabBtnAdmin].forEach(btn => {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-300 hover:text-white flex items-center gap-1.5';
+        });
+
+        if (tab === 'chat') {
+          viewChat.classList.remove('hidden');
+          tabBtnChat.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-indigo-600 text-white shadow';
+          frameHeaderTitle.textContent = 'Nexus Partner Bot';
+          frameHeaderSub.textContent = 'bot • MenuButtonWebApp ("Open")';
+          activeRolePill.textContent = 'BOT CHAT';
+        } else if (tab === 'user') {
+          viewUser.classList.remove('hidden');
+          tabBtnUser.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-indigo-600 text-white shadow';
+          frameHeaderTitle.textContent = 'Nexus Partner Portal';
+          frameHeaderSub.textContent = 'Mini App • User Verification';
+          activeRolePill.textContent = 'USER VIEW';
+        } else if (tab === 'admin') {
+          viewAdmin.classList.remove('hidden');
+          tabBtnAdmin.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-indigo-600 text-white shadow flex items-center gap-1.5';
+          frameHeaderTitle.textContent = 'Nexus Admin Panel';
+          frameHeaderSub.textContent = 'Mini App • Admin Only Mode';
+          activeRolePill.textContent = 'ADMIN ONLY';
+        }
+        renderAll();
+      }
+
+      function renderUserStatus() {
+        chatReferralUrlDisplay.textContent = state.referralUrl;
+        userRefUrlText.textContent = state.referralUrl;
+        platformTagDisplay.textContent = state.referralCodeTag;
+
+        const handle = (inputTelegramUser.value || state.currentUserHandle).trim().toLowerCase();
+        const latest = state.submissions.find(s => s.username.toLowerCase() === handle);
+
+        if (!latest) {
+          userCurrentStatusBadge.textContent = 'Not Submitted';
+          userCurrentStatusBadge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10';
+          latestSubmissionTime.textContent = '--';
+          latestSubmissionBody.innerHTML = 'Abhi tak is username se koi UID submit nahi hua hai. Upar apna UID enter karke submit karein.';
+          return;
+        }
+
+        latestSubmissionTime.textContent = latest.timestamp;
+        if (latest.status === 'pending') {
+          userCurrentStatusBadge.textContent = '⏳ Pending Admin Check';
+          userCurrentStatusBadge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40';
+          latestSubmissionBody.innerHTML = `
+            <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-bold text-white">UID: ${latest.uid}</span>
+                <span class="text-[10px] uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">Pending Review</span>
+              </div>
+              <p class="text-[11px] text-slate-300">${latest.note}</p>
+            </div>
+          `;
+        } else if (latest.status === 'verified') {
+          userCurrentStatusBadge.textContent = '✅ Link & UID Verified';
+          userCurrentStatusBadge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+          latestSubmissionBody.innerHTML = `
+            <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-bold text-white">UID: ${latest.uid}</span>
+                <span class="text-[10px] uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">Approved ✓</span>
+              </div>
+              <p class="text-[11px] text-emerald-200">${latest.note}</p>
+            </div>
+          `;
+        } else {
+          userCurrentStatusBadge.textContent = '❌ Verification Rejected';
+          userCurrentStatusBadge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40';
+          latestSubmissionBody.innerHTML = `
+            <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-bold text-white">UID: ${latest.uid}</span>
+                <span class="text-[10px] uppercase px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-semibold">Rejected ✕</span>
+              </div>
+              <p class="text-[11px] text-rose-200">${latest.note}</p>
+            </div>
+          `;
+        }
+      }
+
+      function renderAdminPanel() {
+        const pendingCount = state.submissions.filter(s => s.status === 'pending').length;
+        const verifiedCount = state.submissions.filter(s => s.status === 'verified').length;
+        const rejectedCount = state.submissions.filter(s => s.status === 'rejected').length;
+
+        pendingBadgeTop.textContent = String(pendingCount);
+        statPending.textContent = String(pendingCount);
+        statVerified.textContent = String(verifiedCount);
+        statRejected.textContent = String(rejectedCount);
+
+        const q = state.adminSearch.trim().toLowerCase();
+        const filtered = state.submissions.filter(item => {
+          const matchesFilter = state.adminFilter === 'all' || item.status === state.adminFilter;
+          const matchesQuery = !q || item.uid.toLowerCase().includes(q) || item.username.toLowerCase().includes(q);
+          return matchesFilter && matchesQuery;
+        });
+
+        if (filtered.length === 0) {
+          adminSubmissionsList.innerHTML = `
+            <div class="glass-subtle rounded-xl p-6 text-center text-xs text-slate-400">
+              No UID submissions match this filter.
+            </div>
+          `;
+          return;
+        }
+
+        adminSubmissionsList.innerHTML = filtered.map(item => {
+          let badgeHtml = '';
+          if (item.status === 'pending') {
+            badgeHtml = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">PENDING CHECK</span>';
+          } else if (item.status === 'verified') {
+            badgeHtml = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">LINK VERIFIED ✓</span>';
+          } else {
+            badgeHtml = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">WRONG LINK / REJECTED</span>';
+          }
+
+          return `
+            <div class="glass-subtle rounded-xl p-3.5 space-y-2.5 border border-white/10">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono text-sm font-bold text-white">UID: ${item.uid}</span>
+                    <button type="button" data-copy-uid="${item.uid}" class="text-[10px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300">Copy</button>
+                  </div>
+                  <p class="text-xs text-indigo-300 font-medium">${item.username} <span class="text-slate-500">• ${item.timestamp}</span></p>
+                </div>
+                ${badgeHtml}
+              </div>
+
+              <p class="text-[11px] text-slate-400 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-white/5">
+                ${item.note}
+              </p>
+
+              <div class="flex items-center gap-2 pt-1">
+                <button type="button" data-action="approve" data-id="${item.id}"
+                  class="flex-1 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold transition">
+                  ✓ Verify (Right Link)
+                </button>
+                <button type="button" data-action="reject" data-id="${item.id}"
+                  class="flex-1 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-[11px] font-semibold transition">
+                  ✕ Reject (Wrong Link)
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function renderAll() {
+        renderUserStatus();
+        renderAdminPanel();
+      }
+
+      // Event Listeners
+      tabBtnChat.addEventListener('click', () => switchTab('chat'));
+      tabBtnUser.addEventListener('click', () => switchTab('user'));
+      tabBtnAdmin.addEventListener('click', () => switchTab('admin'));
+
+      document.getElementById('tgLeftMenuOpenBtn').addEventListener('click', () => {
+        switchTab('user');
+        showToast('Opened Telegram Mini App from left input bar button!');
+      });
+
+      document.getElementById('openMiniAppInlineBtn').addEventListener('click', () => {
+        switchTab('user');
+      });
+
+      document.getElementById('openRegFromChatBtn').addEventListener('click', () => {
+        copyText(state.referralUrl, 'Registration link');
+      });
+
+      document.getElementById('copyLinkFromChatBtn').addEventListener('click', () => {
+        copyText(state.referralUrl, 'Partner link');
+      });
+
+      document.getElementById('copyRefUrlUserBtn').addEventListener('click', () => {
+        copyText(state.referralUrl, 'Partner link');
+      });
+
+      inputTelegramUser.addEventListener('input', () => {
+        state.currentUserHandle = inputTelegramUser.value;
+        renderUserStatus();
+      });
+
+      uidSubmitForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = inputTelegramUser.value.trim() || '@user';
+        const uid = inputUidNumber.value.trim();
+        if (!uid) {
+          showToast('Please enter a valid UID');
+          return;
+        }
+
+        state.currentUserHandle = username;
+        const existingIdx = state.submissions.findIndex(s => s.username.toLowerCase() === username.toLowerCase());
+        const newEntry = {
+          id: 'SUB-' + Math.floor(100 + Math.random() * 900),
+          username: username.startsWith('@') ? username : '@' + username,
+          uid: uid,
+          timestamp: 'Just now',
+          status: 'pending',
+          note: 'Submitted via Mini App • Waiting for Admin referral check'
+        };
+
+        if (existingIdx !== -1) {
+          state.submissions.splice(existingIdx, 1);
+        }
+        state.submissions.unshift(newEntry);
+
+        inputUidNumber.value = '';
+        confirmRefCheck.checked = false;
+        renderAll();
+        showToast('UID submitted! Admin will verify your referral registration.');
+      });
+
+      // Admin filter buttons
+      document.querySelectorAll('.admin-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.adminFilter = btn.getAttribute('data-filter');
+          document.querySelectorAll('.admin-filter-btn').forEach(b => {
+            b.className = 'admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white';
+          });
+          btn.className = 'admin-filter-btn flex-1 py-1.5 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white';
+          renderAdminPanel();
+        });
+      });
+
+      adminSearchInput.addEventListener('input', () => {
+        state.adminSearch = adminSearchInput.value;
+        renderAdminPanel();
+      });
+
+      // Delegate Approve / Reject / Copy inside Admin Submissions List
+      adminSubmissionsList.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('[data-copy-uid]');
+        if (copyBtn) {
+          copyText(copyBtn.getAttribute('data-copy-uid'), 'UID');
+          return;
+        }
+
+        const actionBtn = e.target.closest('[data-action]');
+        if (!actionBtn) return;
+
+        const action = actionBtn.getAttribute('data-action');
+        const id = actionBtn.getAttribute('data-id');
+        const target = state.submissions.find(s => s.id === id);
+        if (!target) return;
+
+        if (action === 'approve') {
+          target.status = 'verified';
+          target.note = 'Admin verified: Registered via official partner referral link ✓';
+          showToast('Approved UID ' + target.uid);
+        } else if (action === 'reject') {
+          target.status = 'rejected';
+          target.note = 'Admin rejected: UID not registered under official referral link ✕';
+          showToast('Rejected UID ' + target.uid);
+        }
+        renderAll();
+      });
+
+      toggleAdminSettingsBtn.addEventListener('click', () => {
+        adminSettingsBox.classList.toggle('hidden');
+      });
+
+      saveAdminSettingsBtn.addEventListener('click', () => {
+        const newUrl = adminRefUrlInput.value.trim();
+        const newCode = adminCodeInput.value.trim();
+        if (newUrl) state.referralUrl = newUrl;
+        if (newCode) state.referralCodeTag = newCode;
+        adminSettingsBox.classList.add('hidden');
+        renderAll();
+        showToast('Referral link & config updated!');
+      });
+
+      document.getElementById('quickFillDemoBtn').addEventListener('click', () => {
+        switchTab('user');
+        inputTelegramUser.value = '@arjun_trader';
+        inputUidNumber.value = '99402815';
+        confirmRefCheck.checked = true;
+        renderUserStatus();
+        showToast('Sample UID filled! Click Submit to test.');
+      });
+
+      document.getElementById('jumpToAdminBtn').addEventListener('click', () => {
+        switchTab('admin');
+      });
+
+      // Initial render
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
